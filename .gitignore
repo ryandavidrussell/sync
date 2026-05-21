@@ -1,0 +1,73 @@
+# --- Python cache / build artifacts ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# --- Jupyter / IPython ---
+.ipynb_checkpoints/
+.jupyter/
+profile_default/
+ipython_config.py
+
+# --- OS / editor files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# --- Logs and temporary outputs ---
+*.log
+logs/
+tmp/
+.tmp/
+out/
+outputs/
+
+# --- Data / model artifacts ---
+# Common heavyweight artifacts. Keep raw dataset zips checked in (they
+# already live at repo root) but ignore unpacked working copies.
+data/
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+*.npy
+*.npz
+*.parquet
+*.feather
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.tflite
+
+# NOTE: We intentionally do NOT ignore *.json so that calibrated artifacts
+# such as genesis_surrogate/calibrated_igen_weights_final.json remain tracked.
