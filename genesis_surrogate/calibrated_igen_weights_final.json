@@ -1,0 +1,36 @@
+{
+  "method": "logistic_regression_fixed_weights",
+  "split_type": "group holdout by source_file",
+  "test_size": 0.2,
+  "random_state": 42,
+  "holdout_metrics": {
+    "logistic_regression_auc": 0.9355293136982495,
+    "fixed_weight_auc": 0.8996971380939149,
+    "fixed_weight_pr_auc": 0.9116430767585083,
+    "fixed_weight_accuracy": 0.805,
+    "fixed_weight_precision": 0.779874213836478,
+    "fixed_weight_recall": 0.8406779661016949,
+    "fixed_weight_f1": 0.8091353996737357
+  },
+  "weights": {
+    "rocof_risk": 0.1336,
+    "frequency_deviation": 0.0588,
+    "voltage_instability": 0.0014,
+    "thermal_violation": 0.0044,
+    "reserve_depletion": 0.6242,
+    "inertia_deficit": 0.0038,
+    "ramp_rate_excess": 0.0525,
+    "power_quality": 0.0014,
+    "interconnection_stress": 0.0082,
+    "isolation_failure": 0.0,
+    "damping_failure": 0.1117
+  },
+  "normalized_threshold": 0.2,
+  "raw_threshold": 0.19056552359528384,
+  "score_normalization": {
+    "train_score_min": 0.010511957889412405,
+    "train_score_max": 0.9107797864187696,
+    "note": "Raw threshold was derived from train_score_min + normalized_threshold * (train_score_max - train_score_min)."
+  },
+  "note": "Replace WEIGHTS and I_GEN_THRESHOLD in hard_detectors.py with the exported values below."
+}

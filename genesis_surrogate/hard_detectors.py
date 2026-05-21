@@ -17,8 +17,76 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import List, Deque
+from typing import List, Deque, Dict
 from telemetry_emitter import TelemetryRecord
+
+# ---------------------------------------------------------------------------
+# Calibrated I_GEN weights and threshold (logistic regression, group holdout
+# by source_file; see calibrated_igen_weights_final.json).
+# ---------------------------------------------------------------------------
+WEIGHTS = {
+    "rocof_risk": 0.1336,
+    "frequency_deviation": 0.0588,
+    "voltage_instability": 0.0014,
+    "thermal_violation": 0.0044,
+    "reserve_depletion": 0.6242,
+    "inertia_deficit": 0.0038,
+    "ramp_rate_excess": 0.0525,
+    "power_quality": 0.0014,
+    "interconnection_stress": 0.0082,
+    "isolation_failure": 0.0000,
+    "damping_failure": 0.1117,
+}
+
+I_GEN_THRESHOLD = 0.190566
+
+
+def compute_igen_score(detector_values: dict) -> float:
+    """Sum weight * value across the calibrated detector set.
+
+    Missing or None values are treated as 0.0. Values are coerced to float.
+    """
+    score = 0.0
+    for name, weight in WEIGHTS.items():
+        raw = detector_values.get(name)
+        if raw is None:
+            continue
+        score += weight * float(raw)
+    return score
+
+
+def classify_igen_risk(detector_values: dict) -> dict:
+    """Classify against the calibrated I_GEN threshold."""
+    score = compute_igen_score(detector_values)
+    return {
+        "igen_score": score,
+        "igen_threshold": I_GEN_THRESHOLD,
+        "igen_violated": score >= I_GEN_THRESHOLD,
+        "margin": score - I_GEN_THRESHOLD,
+    }
+
+
+def explain_igen_score(detector_values: dict) -> dict:
+    """Return per-detector contributions sorted by descending contribution."""
+    contributions = []
+    for name, weight in WEIGHTS.items():
+        raw = detector_values.get(name)
+        value = 0.0 if raw is None else float(raw)
+        contributions.append({
+            "detector": name,
+            "value": value,
+            "weight": weight,
+            "contribution": weight * value,
+        })
+    contributions.sort(key=lambda c: c["contribution"], reverse=True)
+    score = sum(c["contribution"] for c in contributions)
+    return {
+        "contributions": contributions,
+        "igen_score": score,
+        "igen_threshold": I_GEN_THRESHOLD,
+        "igen_violated": score >= I_GEN_THRESHOLD,
+        "margin": score - I_GEN_THRESHOLD,
+    }
 
 # ---------------------------------------------------------------------------
 # Threshold defaults (treat as calibration baselines, not production values)
@@ -127,21 +195,9 @@ class GenesisHardDetectors:
     to replace with physics-grounded values from the heatmap_data corpus.
     """
 
-    # I_GEN signal weights (w1-w10) — replace after calibration
-    WEIGHTS = {
-        "rocof_risk":               0.20,  # w1 — highest per Sajadi et al.
-        "frequency_deviation":      0.18,  # w2
-        "voltage_instability":      0.13,  # w3
-        "thermal_margin_violation": 0.10,  # w4
-        "reserve_margin_depletion": 0.10,  # w5
-        "inertia_deficit":          0.08,  # w6 — lower per Sajadi finding
-        "ramp_rate_excess":         0.08,  # w7
-        "power_quality_distortion": 0.05,  # w8
-        "interconnection_stress":   0.05,  # w9
-        "isolation_failure":        0.03,  # w10
-        # New detector grounded in Sajadi et al. damping finding:
-        "synthetic_damping_failure": 0.10, # w11 (headroom reserve depletion)
-    }
+    # I_GEN signal weights — calibrated via logistic regression group holdout
+    # (see calibrated_igen_weights_final.json / module-level WEIGHTS).
+    WEIGHTS = dict(WEIGHTS)
 
     def __init__(
         self,
@@ -221,12 +277,12 @@ class GenesisHardDetectors:
             "rocof_risk":               min(1.0, abs(t.rocof_hz_per_s) / ROCOF_THRESHOLD_HZ_PER_S),
             "frequency_deviation":      min(1.0, abs(t.frequency_hz - 60.0) / FREQ_DEVIATION_BAND_HZ),
             "voltage_instability":      min(1.0, max(0.0, (1.0 - t.voltage_pu) / 0.10)),
-            "thermal_margin_violation": min(1.0, max(0.0, 1.0 - t.thermal_margin_pct / 100.0)),
-            "reserve_margin_depletion": min(1.0, max(0.0, 1.0 - t.reserve_margin_pct / RESERVE_MARGIN_FLOOR_PCT)),
+            "thermal_violation":        min(1.0, max(0.0, 1.0 - t.thermal_margin_pct / 100.0)),
+            "reserve_depletion":        min(1.0, max(0.0, 1.0 - t.reserve_margin_pct / RESERVE_MARGIN_FLOOR_PCT)),
             "inertia_deficit":          min(1.0, max(0.0, 1.0 - min(t.inertia_coeffs) / 1.0)),
             "ramp_rate_excess":         min(1.0, abs(t.rocof_hz_per_s) / RAMP_RATE_MAX_HZ_PER_S2),
-            "power_quality_distortion": min(1.0, abs(1.0 - t.voltage_pu) * 5),
+            "power_quality":            min(1.0, abs(1.0 - t.voltage_pu) * 5),
             "interconnection_stress":   min(1.0, max(0.0, 1.0 - t.thermal_margin_pct / 50.0)),
             "isolation_failure":        1.0 if all(g == "GFL" for g in t.generator_technologies) else 0.0,
-            "synthetic_damping_failure": min(1.0, max(0.0, 1.0 - t.headroom_reserve_pct / 20.0)),
+            "damping_failure":          min(1.0, max(0.0, 1.0 - t.headroom_reserve_pct / 20.0)),
         }
